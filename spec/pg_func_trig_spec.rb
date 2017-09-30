@@ -94,7 +94,7 @@ RSpec.describe "postgresql DB build script for swarm64 codetest" do
       expect(new_row[0]).not_to be nil
     end
 
-    # outside scope of test but left in for completeness of DB 
+    # outside scope of test but left in for completeness of DB build
     it 'updates the timestamp on updating data fields' do
       connection = PG.connect(dbname: 'swarmtest')
       new_vals = connection.exec(%(UPDATE ingestion_test

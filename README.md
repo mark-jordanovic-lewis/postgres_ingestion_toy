@@ -26,7 +26,7 @@ You have been warned.
 	$ gem install bundler
 	$ bundle install
 - Run the ruby script to insert a function and trigger into the postgres DB:
-	$ ruby ts_function.rb <db_name> <password>
+	$ ruby build_DB.rb
 - Run `go build` in src directory, this builds the binaries to run the project.
 	$ cd src
 	$ go build

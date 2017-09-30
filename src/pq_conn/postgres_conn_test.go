@@ -1,4 +1,4 @@
-package postgres_conn
+package pq_conn
 
 import "testing"
 

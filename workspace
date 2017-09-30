@@ -2,4 +2,3 @@
 
 export GOPATH=/home/maruko/Documents/Life/interviews/swarm64_codetest
 export GOBIN=/home/maruko/Documents/Life/interviews/swarm64_codetest/gobin
-export GOROOT=/home/maruko/Documents/Life/interviews/swarm64_codetest/goroot

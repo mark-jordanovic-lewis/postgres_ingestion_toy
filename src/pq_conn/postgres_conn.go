@@ -1,11 +1,10 @@
-package postgres_conn
+package pq_conn
 
 import (
 	"database/sql"
 	"fmt"
 	"os"
 
-	pgx "github.com/jackc/pgx"
 	pq "github.com/lib/pq"
 )
 
@@ -22,15 +21,4 @@ func MakeConnection() *sql.DB {
 func tmp_pq(db *sql.DB) {
 	txn, err := db.Begin()
 	txn.Prepare(pq.CopyIn("ingestion_test", "src", "dst", "flags"))
-}
-
-func tmp_pgx(db *sql.DB) {
-	txn, err := db.Begin()
-	rows := []DataFields{}
-
-	copyCount, err := conn.CopyFrom(
-		pgx.Identifier{"ingestion_test"},
-		[]string{"src", "dst", "flags"},
-		pgx.CopyFromRows(rows),
-	)
 }
