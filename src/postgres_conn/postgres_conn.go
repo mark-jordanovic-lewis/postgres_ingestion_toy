@@ -18,6 +18,7 @@ func MakeConnection() *sql.DB {
 	return conn
 }
 
+// just to keep the libs imported
 func tmp_pq(db *sql.DB) {
 	txn, err := db.Begin()
 	txn.Prepare(pq.CopyIn("ingestion_test", "src", "dst", "flags"))
