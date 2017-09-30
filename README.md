@@ -1,25 +1,15 @@
 - Run go build in src directory, this builds the binaries to run the project.
-# --------------------- #
-# Code test for swarm64 #
-# --------------------- #
-
+# Optimise injection of data into postgres DB
 Author : Mark Jordanovic-Lewis
 
-
-
-## WARNING ##
-=============
-
-Setting up this project may effect unwanted changes in your postgres DB, please
-use a fresh DB or ensure that the function which will be applied to the DB to 
-update the ts column does not interfere with any other proceedures or triggers
-you have already setup.
+## WARNING
+Setting up this project may effect unwanted changes in your postgres DB, please use a fresh DB or ensure that the function which will be applied to the DB to  update the ts column does not interfere with any other procedures or triggers you have already setup.
 
 You have been warned.
 
 
-Setup
------
+### Setup
+
 - If you don't have go use asdf to get it and setup your PATH approprately.
   (see - https://github.com/asdf-vm/asdf)
 	$ asdf plugin-add golang https://github.com/kennyp/asdf-golang.git
@@ -43,21 +33,19 @@ Setup
 
 (u cud not has bourne again shell so maybe change /bin/bash in above scripts to /bin/zsh)
 
-
-Test
-----
-
+### Test
+#### Go
 Run go test in src directory (all the source is in there).
+#### Ruby
+Run rspec in the top level of the project dir
 
 
-Running the project
--------------------
+### Running the project
 
 main <db_uname> <db_name> <db_pwd> <db_tablename>
 
 
-Task
-----
+# Task
 
 *) Generate postgres DB with single table `swarmtest`
 	Rows: ts    - timestamp (measurement of row copy time)
@@ -82,4 +70,3 @@ Task
 
 7) Make into a docker container that pulls this from github
    installs everything and builds the DB and project.
-
