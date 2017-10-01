@@ -3,18 +3,27 @@ package pq_conn
 import (
 	"database/sql"
 	"fmt"
+	"generator"
 	"logger"
-	"os"
-	"strings"
 	"time"
 
 	pq "github.com/lib/pq"
 )
 
 type PqConnection struct {
-	Log      logger.Logger
-	Conn     *sql.DB
-	Listener *pq.Listener
+	Log              logger.Logger
+	Conn             *sql.DB
+	Listener         *pq.Listener
+	Txn              *sql.Tx
+	ConnectionOpen   bool
+	ConnectionBroken bool
+}
+
+type SwarmRow struct {
+	Ts    *time.Time
+	Src   *int64
+	Dst   *int64
+	Flags *int64
 }
 
 func MakeConnection() *PqConnection {
@@ -30,39 +39,91 @@ func MakeConnection() *PqConnection {
 			conn_opts,
 			time.Duration(50)*time.Millisecond,
 			time.Duration(1)*time.Second,
-			listenerCallback(&log))}
-	// if !conn.PingDB() {
-	// 	return nil
-	// }
+			listenerCallback(&log)),
+		Txn:              nil,
+		ConnectionOpen:   false,
+		ConnectionBroken: false}
 	return &conn
 }
 
-func (conn PqConnection) PingDB() bool {
+func (conn *PqConnection) CheckConnectionState() {
 	if err := conn.Listener.Ping(); err != nil {
-		if errStr := err.Error(); len(strings.TrimSpace(errStr)) == 0 {
-			conn.Log.LogError(fmt.Sprintf("No currently active connection"))
+		if errStr := err.Error(); errStr == "no connection" {
+			conn.Log.LogError(fmt.Sprintf("No currently active connection\n"))
 		} else {
-			conn.Log.LogError(fmt.Sprintf("Connection has issues\n%v\n", err.Error()))
-			return false
+			conn.Log.LogError(fmt.Sprintf("Connection has issues: %v\n", err))
+			conn.ConnectionBroken = true
 		}
+		conn.ConnectionOpen = false
+	} else {
+		conn.ConnectionOpen = true
 	}
-	return true
 }
 
-func (conn PqConnection) OpenTransaction() *sql.Tx {
+func (conn *PqConnection) OpenTransaction() {
 	txn, err := conn.Conn.Begin()
 	if err != nil {
 		conn.Log.LogError("Could not open transaction")
 		errStr := fmt.Sprintf("%v\n", err.Error())
 		conn.Log.LogError(errStr)
-		os.Exit(1)
 	}
-	return txn
+	// allow some time for the transaction to connect, 2 ms seems enough, 1 ms too short
+	time.Sleep(2 * time.Millisecond)
+	conn.CheckConnectionState()
+	conn.Txn = txn
 }
 
-// just to keep the libs imported
-func tmp_pq(txn *sql.Tx) {
-	txn.Prepare(pq.CopyIn("ingestion_test", "src", "dst", "flags"))
+func (conn *PqConnection) IngestData(data []generator.DataFields) (complete bool) {
+
+	var errStr string
+
+	defer func() {
+		conn.Txn.Rollback()
+		if r := recover(); r != nil {
+			conn.Log.LogError(fmt.Sprintln(r))
+			conn.CheckConnectionState()
+			complete = false
+		} else {
+			complete = true
+		}
+	}()
+
+	stmnt, err := conn.Txn.Prepare(pq.CopyIn("ingestion_test", "src", "dst", "flags"))
+	if err != nil {
+		errStr = fmt.Sprintf("Could not generate transaction statement: %v", err.Error())
+		panic(errStr)
+	}
+
+	for _, dat := range data {
+		_, err := stmnt.Exec(dat.Src.Int64(), dat.Dst.Int64(), dat.Flags.Int64())
+		if err != nil {
+			errStr = fmt.Sprintf("Problem adding %v to txn statement: %v", dat, err.Error())
+			if exit := stmnt.Close(); exit != nil {
+				errStr = fmt.Sprintf(
+					"%v\n\t\tProblem closing transaction statement: %v", errStr, exit.Error())
+			}
+			panic(errStr)
+		}
+	}
+
+	if _, exit := stmnt.Exec(); exit != nil {
+		errStr := fmt.Sprintf("Problem submitting transaction statement: %v", err.Error())
+		if exit := stmnt.Close(); exit != nil {
+			errStr = fmt.Sprintf(
+				"%v\n\t\tProblem closing transaction statement: %v", errStr, exit.Error())
+		}
+		panic(errStr)
+	}
+	if exit := stmnt.Close(); exit != nil {
+		errStr = fmt.Sprintf("Problem closing transaction statement: %v", exit.Error())
+		panic(errStr)
+	}
+
+	if exit := conn.Txn.Commit(); exit != nil {
+		panic(
+			fmt.Sprintf("Problem committing transaction: %v", exit.Error()))
+	}
+	return
 }
 
 func listenerCallback(l *logger.Logger) func(event pq.ListenerEventType, err error) {
@@ -70,13 +131,13 @@ func listenerCallback(l *logger.Logger) func(event pq.ListenerEventType, err err
 		switch event {
 		case pq.ListenerEventDisconnected:
 			l.LogError(
-				fmt.Sprintf("Connection Disconnected %v\n%v\n", time.Now(), err.Error()))
+				fmt.Sprintf("Connection Disconnected: %v\n", err.Error()))
 		case pq.ListenerEventReconnected:
-			l.LogError(fmt.Sprintf("Connection to db re-established %v\n", time.Now()))
+			l.LogError(fmt.Sprintf("Connection to db re-established\n"))
 		case pq.ListenerEventConnectionAttemptFailed:
-			l.LogError(fmt.Sprintf("Could not establish DB connection %v\n", time.Now()))
+			l.LogError(fmt.Sprintf("Could not establish DB connection\n"))
 		case pq.ListenerEventConnected:
-			l.LogError(fmt.Sprintf("DB connection established %v\n", time.Now()))
+			l.LogError(fmt.Sprintf("DB connection established\n"))
 		}
 	}
 }
