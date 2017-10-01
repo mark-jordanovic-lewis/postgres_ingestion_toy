@@ -12,12 +12,15 @@ import (
 
 // PqConnection : simple DB connection model
 type PqConnection struct {
+	DbName           string
+	Table            string
 	Log              logger.Logger
 	Conn             *sql.DB
 	Listener         *pq.Listener
 	Txn              *sql.Tx
 	ConnectionOpen   bool
 	ConnectionBroken bool
+	BatchIngested    bool
 }
 
 // SwarmRow : row return struct
@@ -29,16 +32,17 @@ type SwarmRow struct {
 }
 
 // MakeConnection : build PqConnection object with connection to DB
-func MakeConnection(dbname string) *PqConnection {
-	// conn_url := "postgres://swarm64:swarm64@localhost/swarmtest?sslmode=require"
+func MakeConnection(dbname, table string) *PqConnection {
 	conn_opts := fmt.Sprintf(
 		"user=swarm64 password=swarm64 dbname=%v sslmode=disable", dbname)
 	db_conn, _ := sql.Open("postgres", conn_opts) // no conn occurs, err always nil
 	log := logger.InitLog("PQ_CONN")
 
 	conn := PqConnection{
-		Log:  log,
-		Conn: db_conn,
+		DbName: dbname,
+		Table:  table,
+		Log:    log,
+		Conn:   db_conn,
 		Listener: pq.NewListener(
 			conn_opts,
 			time.Duration(50)*time.Millisecond,
@@ -46,7 +50,9 @@ func MakeConnection(dbname string) *PqConnection {
 			listenerCallback(&log)),
 		Txn:              nil,
 		ConnectionOpen:   false,
-		ConnectionBroken: false}
+		ConnectionBroken: false,
+		BatchIngested:    false}
+
 	return &conn
 }
 
@@ -54,9 +60,9 @@ func MakeConnection(dbname string) *PqConnection {
 func (conn *PqConnection) CheckConnectionState() {
 	if err := conn.Listener.Ping(); err != nil {
 		if errStr := err.Error(); errStr == "no connection" {
-			conn.Log.LogError(fmt.Sprintf("No currently active connection\n"))
+			conn.Log.LogError(fmt.Sprintf("No currently active connection"))
 		} else {
-			conn.Log.LogError(fmt.Sprintf("Connection has issues: %v\n", err))
+			conn.Log.LogError(fmt.Sprintf("Connection has issues: %v", err))
 			conn.ConnectionBroken = true
 		}
 		conn.ConnectionOpen = false
@@ -70,11 +76,11 @@ func (conn *PqConnection) OpenTransaction() {
 	txn, err := conn.Conn.Begin()
 	if err != nil {
 		conn.Log.LogError("Could not open transaction")
-		errStr := fmt.Sprintf("%v\n", err.Error())
+		errStr := fmt.Sprintf("%v", err.Error())
 		conn.Log.LogError(errStr)
 	}
-	// allow some time for the transaction to connect, 2 ms seems enough, 1 ms too short
-	time.Sleep(2 * time.Millisecond)
+	// allow some time for the transaction to connect, 3 ms seems enough, 1&2 ms too short
+	time.Sleep(3 * time.Millisecond)
 	conn.CheckConnectionState()
 	conn.Txn = txn
 }
@@ -82,7 +88,10 @@ func (conn *PqConnection) OpenTransaction() {
 // IngestData : takes data and ingests it into DB, returning true, or, returns false on errors
 func (conn *PqConnection) IngestData(data []generator.DataFields) (complete bool) {
 	defer func() {
-		if exit := conn.Txn.Rollback(); exit != nil {
+		switch exit := conn.Txn.Rollback(); exit.Error() {
+		case "sql: Transaction has already been committed or rolled back":
+			conn.Log.LogError("Successful transaction.")
+		default:
 			conn.Log.LogError(fmt.Sprintf("Rollback Message: %v", exit.Error()))
 		}
 		if r := recover(); r != nil {
@@ -102,10 +111,43 @@ func (conn *PqConnection) IngestData(data []generator.DataFields) (complete bool
 	return
 }
 
+// SelectTimeStamps : select timestamps out of ingested data
+func (conn *PqConnection) SelectTimeStamps() (tss []time.Time) {
+	var tmpT *time.Time
+	rows, err := conn.Conn.Query(
+		fmt.Sprintf("SELECT ts FROM %v ORDER BY ts", conn.Table))
+	if err != nil {
+		conn.Log.LogError(
+			fmt.Sprintf("Error in select ts: %v", err.Error()))
+		return
+	}
+	for rows.Next() {
+		if err := rows.Scan(&tmpT); err != nil {
+			conn.Log.LogError(
+				fmt.Sprintf("Could not scan row: %v", err.Error()))
+		} else {
+			tss = append(tss, *tmpT)
+		}
+	}
+	return
+}
+
+// dropAllRows : cleans the table for another run
+func (conn PqConnection) dropAllRows() bool {
+	_, err := conn.Conn.Exec(
+		fmt.Sprintf("DELETE FROM %v", conn.Table))
+	if err != nil {
+		conn.Log.LogError(
+			fmt.Sprintf("Rows may remain in the DB: %v", err.Error()))
+		return false
+	}
+	return true
+}
+
 // IngestData helper methods - all panics caught in InjestData defer
 func (conn PqConnection) prepareStatement(data []generator.DataFields) *sql.Stmt {
 	var errStr string
-	stmnt, err := conn.Txn.Prepare(pq.CopyIn("ingestion_test", "src", "dst", "flags"))
+	stmnt, err := conn.Txn.Prepare(pq.CopyIn(conn.Table, "src", "dst", "flags"))
 	if err != nil {
 		errStr = fmt.Sprintf("Could not generate transaction statement: %v", err.Error())
 		panic(errStr)
@@ -147,13 +189,13 @@ func listenerCallback(l *logger.Logger) func(event pq.ListenerEventType, err err
 		switch event {
 		case pq.ListenerEventDisconnected:
 			l.LogError(
-				fmt.Sprintf("Connection Disconnected: %v\n", err.Error()))
+				fmt.Sprintf("Connection Disconnected: %v", err.Error()))
 		case pq.ListenerEventReconnected:
-			l.LogError(fmt.Sprintf("Connection to db re-established\n"))
+			l.LogError(fmt.Sprintf("Connection to db re-established"))
 		case pq.ListenerEventConnectionAttemptFailed:
-			l.LogError(fmt.Sprintf("Could not establish DB connection\n"))
+			l.LogError(fmt.Sprintf("Could not establish DB connection"))
 		case pq.ListenerEventConnected:
-			l.LogError(fmt.Sprintf("DB connection established\n"))
+			l.LogError(fmt.Sprintf("DB connection established"))
 		}
 	}
 }

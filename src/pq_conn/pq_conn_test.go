@@ -7,14 +7,14 @@ import (
 
 func TestMakeConnection(t *testing.T) {
 	t.Log("Checking connection to postgres database")
-	conn := MakeConnection("swarmtest")
+	conn := MakeConnection("swarmtest", "ingestion_test")
 	if conn == nil {
 		t.Errorf("Expected connection to postgres but got %v", conn)
 	}
 }
 
 func TestCheckConnectionState(t *testing.T) {
-	conn := MakeConnection("swarmtest")
+	conn := MakeConnection("swarmtest", "ingestion_test")
 	conn.CheckConnectionState()
 	if conn.ConnectionOpen {
 		t.Errorf("Not expecting to be connected to DB on init")
@@ -26,7 +26,7 @@ func TestCheckConnectionState(t *testing.T) {
 
 func TestSetupTransaction(t *testing.T) {
 	t.Log("Opening a transaction on the DB")
-	conn := MakeConnection("swarmtest")
+	conn := MakeConnection("swarmtest", "ingestion_test")
 	conn.OpenTransaction()
 	if conn.Txn == nil {
 		t.Errorf("Expected transaction to be opened but got %v", conn.Txn)
@@ -36,12 +36,30 @@ func TestSetupTransaction(t *testing.T) {
 	}
 }
 
+func TestDropAllRows(t *testing.T) {
+	data := generator.NewDataSet(5)
+	conn := MakeConnection("swarmtest", "ingestion_test")
+	conn.OpenTransaction()
+	conn.IngestData(data)
+	if !conn.dropAllRows() {
+		t.Errorf("Reported that there was an error.")
+	}
+	rows, _ := conn.Conn.Query("SELECT * FROM ingestion_test")
+	i := 0
+	for rows.Next() {
+		i++
+	}
+	if i != 0 {
+		t.Error("There is still data in the table.")
+	}
+}
+
 func TestCopyData(t *testing.T) {
 	var exit error
 	var scanned SwarmRow
 	t.Log("Copying in a row to the table")
 	data := []generator.DataFields{generator.NewDataFields()}
-	conn := MakeConnection("swarmtest")
+	conn := MakeConnection("swarmtest", "ingestion_test")
 	conn.OpenTransaction()
 	if conn.ConnectionOpen {
 		if !conn.IngestData(data) {
@@ -73,15 +91,26 @@ func TestCopyData(t *testing.T) {
 			conn.ConnectionOpen, conn.Txn, conn.Txn)
 	}
 	// have to do a clean up of the test db
-	conn.dropAllRows(t)
+	conn.dropAllRows()
 }
 
-func (conn PqConnection) dropAllRows(t *testing.T) {
-	_, err := conn.Conn.Exec("DELETE FROM ingestion_test")
-	if err != nil {
-		t.Errorf("Rows may remian in the DB: %v", err.Error())
+func TestSelectTimestamps(t *testing.T) {
+	data := generator.NewDataSet(50)
+	conn := MakeConnection("swarmtest", "ingestion_test")
+	conn.OpenTransaction()
+	conn.IngestData(data)
+	tss := conn.SelectTimeStamps()
+	l := len(tss)
+	if l == 0 {
+		t.Errorf("Expected to get some data but got none.")
 	}
+	if l != 50 {
+		t.Errorf("Expected to get 50 data but got %v.", l)
+	}
+	conn.dropAllRows()
 }
+
+// Test Helpers
 
 func incorrectData(a SwarmRow, b generator.DataFields) bool {
 	return !(*a.Src == b.Src && *a.Dst == b.Dst && *a.Flags == b.Flags)
