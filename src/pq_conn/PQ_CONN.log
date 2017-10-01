@@ -1,0 +1,59 @@
+Connection could not be established
+no connection
+Could not open transactionpq: password authentication failed for user "maruko"
+Connection could not be established
+no connection
+Could not establish DB connection 2017-10-01 11:51:56.782213745 +0200 CEST
+Could not establish DB connection 2017-10-01 11:51:56.782645378 +0200 CEST
+Could not open transactionpq: password authentication failed for user "maruko"
+Connection could not be established
+no connection
+Connection could not be established
+no connection
+Could not establish DB connection 2017-10-01 11:52:32.63250224 +0200 CEST
+Could not establish DB connection 2017-10-01 11:52:32.633447071 +0200 CEST
+Could not establish DB connection 2017-10-01 11:52:32.633414379 +0200 CEST
+Could not open transactionpq: database "swarm64" does not exist
+Connection could not be established
+no connection
+Could not establish DB connection 2017-10-01 11:53:09.505942859 +0200 CEST
+Could not open transactionpq: database "swarm64" does not exist
+Connection could not be established
+no connection
+Connection could not be established
+no connection
+Connection could not be established
+no connection
+Connection could not be established
+no connection
+Connection could not be established
+no connection
+Connection could not be established
+no connection
+Connection has issues
+no connection
+DB connection established 2017-10-01 12:10:30.763991972 +0200 CEST
+DB connection established 2017-10-01 12:10:30.764366428 +0200 CEST
+DB connection established 2017-10-01 12:10:30.764422614 +0200 CEST
+Connection has issues
+no connection
+DB connection established 2017-10-01 12:12:45.933662657 +0200 CEST
+DB connection established 2017-10-01 12:12:45.935472069 +0200 CEST
+DB connection established 2017-10-01 12:12:45.935531071 +0200 CEST
+Connection has issues
+no connection
+Could not open transactionpq: password authentication failed for user "maruko"
+Connection has issues
+no connection
+Could not establish DB connection 2017-10-01 12:14:19.167270794 +0200 CEST
+Could not open transactionpq: password authentication failed for user "swarm64"
+Connection has issues
+no connection
+Could not establish DB connection 2017-10-01 12:14:36.050328189 +0200 CEST
+Could not establish DB connection 2017-10-01 12:14:36.050773274 +0200 CEST
+Could not open transactionpq: password authentication failed for user "swarm64"
+Connection has issues
+no connection
+DB connection established 2017-10-01 12:14:48.494749087 +0200 CEST
+DB connection established 2017-10-01 12:14:48.494822654 +0200 CEST
+DB connection established 2017-10-01 12:14:48.496555241 +0200 CEST

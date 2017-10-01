@@ -8,6 +8,17 @@ RSpec.describe "postgresql DB build script for swarm64 codetest" do
     ['dst', 'bigint'],
     ['flags', 'bigint']
   ]}
+
+  context 'Adding a user to postgres' do
+    before { PgSetup::add_user }
+    after {PgSetup::remove_role}
+    it 'allows the user to connec to the postgres db' do
+      expect{
+        PG.connect(dbname:'postgres', user:'swarm64', password:'swarm64')
+      }.not_to raise_error(PG::ConnectionBad)
+    end
+  end
+
   context "When creating the database", order: :defined do
 
     before(:all) { PgSetup::build_db }

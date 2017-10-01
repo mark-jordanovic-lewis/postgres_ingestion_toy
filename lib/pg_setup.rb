@@ -13,13 +13,19 @@ require 'pg'
 
 class PgSetup
   class << self
+    def add_user(uname:'swarm64', password:'swarm64')
+      conn = PG.connect(dbname:'postgres')
+      conn.exec(%(CREATE ROLE #{uname}
+                  WITH CREATEDB SUPERUSER LOGIN PASSWORD '#{password}'))
+    end
+
     def build_db(database:'swarmtest')
       conn = PG.connect(dbname: 'postgres')
       conn.exec(%(CREATE DATABASE #{database}))
       conn.close
     end
 
-    def build_table(table: 'ingestion_test', database: 'swarmtest', columns: [])
+    def build_table(table:'ingestion_test', database:'swarmtest', columns:[])
       cols = columns.map do |col|
         column = col.join(' ')
         column += ' default current_timestamp' if col[1] == 'timestamp'
@@ -28,12 +34,12 @@ class PgSetup
       conn = PG.connect(dbname: database)
       conn.exec(%(CREATE TABLE #{table}\( #{cols} \)))
       conn.close
+      def insert_ts_function(database:'swarmtest')
     end
 
     # dangerous if you have an update_ts_column as a function in your DB
     # outside scope of test but left in for completeness of DB use
     # not used in actual build script
-    def insert_ts_function(database:'swarmtest')
       conn = PG.connect(dbname: database)
       conn.exec(%(CREATE OR REPLACE FUNCTION update_ts_column()
                   RETURNS TRIGGER AS $$
@@ -61,6 +67,13 @@ class PgSetup
       conn = PG.connect(dbname: 'postgres')
       kill_connections(conn, database) if has_connections(conn, database)
       conn.exec(%(DROP DATABASE #{database}))
+      conn.close
+    end
+
+    # used for testing only
+    def remove_role(role:'swarm64')
+      conn = PG.connect(dbname: 'postgres')
+      conn.exec(%(DROP ROLE #{role}))
       conn.close
     end
 
