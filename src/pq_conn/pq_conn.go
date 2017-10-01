@@ -26,9 +26,10 @@ type SwarmRow struct {
 	Flags *int64
 }
 
-func MakeConnection() *PqConnection {
+func MakeConnection(dbname string) *PqConnection {
 	// conn_url := "postgres://swarm64:swarm64@localhost/swarmtest?sslmode=require"
-	conn_opts := "user=swarm64 password=swarm64 dbname=swarmtest sslmode=disable"
+	conn_opts := fmt.Sprintf(
+		"user=swarm64 password=swarm64 dbname=%v sslmode=disable", dbname)
 	db_conn, _ := sql.Open("postgres", conn_opts) // no conn occurs, err always nil
 	log := logger.InitLog("PQ_CONN")
 
@@ -95,7 +96,7 @@ func (conn *PqConnection) IngestData(data []generator.DataFields) (complete bool
 	}
 
 	for _, dat := range data {
-		_, err := stmnt.Exec(dat.Src.Int64(), dat.Dst.Int64(), dat.Flags.Int64())
+		_, err := stmnt.Exec(dat.Src, dat.Dst, dat.Flags)
 		if err != nil {
 			errStr = fmt.Sprintf("Problem adding %v to txn statement: %v", dat, err.Error())
 			if exit := stmnt.Close(); exit != nil {

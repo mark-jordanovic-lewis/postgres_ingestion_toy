@@ -7,14 +7,14 @@ import (
 
 func TestMakeConnection(t *testing.T) {
 	t.Log("Checking connection to postgres database")
-	conn := MakeConnection()
+	conn := MakeConnection("swarmtest")
 	if conn == nil {
 		t.Errorf("Expected connection to postgres but got %v", conn)
 	}
 }
 
 func TestCheckConnectionState(t *testing.T) {
-	conn := MakeConnection()
+	conn := MakeConnection("swarmtest")
 	conn.CheckConnectionState()
 	if conn.ConnectionOpen {
 		t.Errorf("Not expecting to be connected to DB on init")
@@ -26,7 +26,7 @@ func TestCheckConnectionState(t *testing.T) {
 
 func TestSetupTransaction(t *testing.T) {
 	t.Log("Opening a transaction on the DB")
-	conn := MakeConnection()
+	conn := MakeConnection("swarmtest")
 	conn.OpenTransaction()
 	if conn.Txn == nil {
 		t.Errorf("Expected transaction to be opened but got %v", conn.Txn)
@@ -41,7 +41,7 @@ func TestCopyData(t *testing.T) {
 	var scanned SwarmRow
 	t.Log("Copying in a row to the table")
 	data := []generator.DataFields{generator.NewDataFields()}
-	conn := MakeConnection()
+	conn := MakeConnection("swarmtest")
 	conn.OpenTransaction()
 	if conn.ConnectionOpen {
 		if !conn.IngestData(data) {
@@ -59,6 +59,12 @@ func TestCopyData(t *testing.T) {
 					&scanned.Flags); exit != nil {
 					t.Errorf("Error in reading rows: %v", exit.Error())
 				}
+				if incorrectData(scanned, data[0]) {
+					t.Errorf(
+						"data out does not match data in: %v, %v, %v != %v, %v, %v",
+						*scanned.Src, *scanned.Dst, *scanned.Flags,
+						data[0].Src, data[0].Dst, data[0].Flags)
+				}
 			}
 		}
 	} else {
@@ -66,4 +72,17 @@ func TestCopyData(t *testing.T) {
 			"Transaction connected: %v\n conn.Txn: %T : %v",
 			conn.ConnectionOpen, conn.Txn, conn.Txn)
 	}
+	// have to do a clean up of the test db
+	conn.dropAllRows(t)
+}
+
+func (conn PqConnection) dropAllRows(t *testing.T) {
+	_, err := conn.Conn.Exec("DELETE FROM ingestion_test")
+	if err != nil {
+		t.Errorf("Rows may remian in the DB: %v", err.Error())
+	}
+}
+
+func incorrectData(a SwarmRow, b generator.DataFields) bool {
+	return !(*a.Src == b.Src && *a.Dst == b.Dst && *a.Flags == b.Flags)
 }
