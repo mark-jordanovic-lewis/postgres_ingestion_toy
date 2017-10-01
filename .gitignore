@@ -1,0 +1,3 @@
+# ignore log files
+src/logger/TestLog.log
+src/pq_conn/PQ_CONN.log
