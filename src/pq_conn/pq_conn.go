@@ -10,6 +10,7 @@ import (
 	pq "github.com/lib/pq"
 )
 
+// PqConnection : simple DB connection model
 type PqConnection struct {
 	Log              logger.Logger
 	Conn             *sql.DB
@@ -19,6 +20,7 @@ type PqConnection struct {
 	ConnectionBroken bool
 }
 
+// SwarmRow : row return struct
 type SwarmRow struct {
 	Ts    *time.Time
 	Src   *int64
@@ -26,6 +28,7 @@ type SwarmRow struct {
 	Flags *int64
 }
 
+// MakeConnection : build PqConnection object with connection to DB
 func MakeConnection(dbname string) *PqConnection {
 	// conn_url := "postgres://swarm64:swarm64@localhost/swarmtest?sslmode=require"
 	conn_opts := fmt.Sprintf(
@@ -47,6 +50,7 @@ func MakeConnection(dbname string) *PqConnection {
 	return &conn
 }
 
+// CheckConnectionState : Ping db using PqConnection.Listener to establish connection state
 func (conn *PqConnection) CheckConnectionState() {
 	if err := conn.Listener.Ping(); err != nil {
 		if errStr := err.Error(); errStr == "no connection" {
@@ -61,6 +65,7 @@ func (conn *PqConnection) CheckConnectionState() {
 	}
 }
 
+// OpenTransaction : Opens up a new transaction with the DB
 func (conn *PqConnection) OpenTransaction() {
 	txn, err := conn.Conn.Begin()
 	if err != nil {
@@ -74,12 +79,12 @@ func (conn *PqConnection) OpenTransaction() {
 	conn.Txn = txn
 }
 
+// IngestData : takes data and ingests it into DB, returning true, or, returns false on errors
 func (conn *PqConnection) IngestData(data []generator.DataFields) (complete bool) {
-
-	var errStr string
-
 	defer func() {
-		conn.Txn.Rollback()
+		if exit := conn.Txn.Rollback(); exit != nil {
+			conn.Log.LogError(fmt.Sprintf("Rollback Message: %v", exit.Error()))
+		}
 		if r := recover(); r != nil {
 			conn.Log.LogError(fmt.Sprintln(r))
 			conn.CheckConnectionState()
@@ -88,7 +93,18 @@ func (conn *PqConnection) IngestData(data []generator.DataFields) (complete bool
 			complete = true
 		}
 	}()
+	stmnt := conn.prepareStatement(data)
+	conn.applyStatement(stmnt)
+	if exit := conn.Txn.Commit(); exit != nil {
+		panic(
+			fmt.Sprintf("Problem committing transaction: %v", exit.Error()))
+	}
+	return
+}
 
+// IngestData helper methods - all panics caught in InjestData defer
+func (conn PqConnection) prepareStatement(data []generator.DataFields) *sql.Stmt {
+	var errStr string
 	stmnt, err := conn.Txn.Prepare(pq.CopyIn("ingestion_test", "src", "dst", "flags"))
 	if err != nil {
 		errStr = fmt.Sprintf("Could not generate transaction statement: %v", err.Error())
@@ -106,9 +122,13 @@ func (conn *PqConnection) IngestData(data []generator.DataFields) (complete bool
 			panic(errStr)
 		}
 	}
+	return stmnt
+}
 
-	if _, exit := stmnt.Exec(); exit != nil {
-		errStr := fmt.Sprintf("Problem submitting transaction statement: %v", err.Error())
+func (conn PqConnection) applyStatement(stmnt *sql.Stmt) {
+	var errStr string
+	if _, execExit := stmnt.Exec(); execExit != nil {
+		errStr = fmt.Sprintf("Problem submitting transaction statement: %v", execExit.Error())
 		if exit := stmnt.Close(); exit != nil {
 			errStr = fmt.Sprintf(
 				"%v\n\t\tProblem closing transaction statement: %v", errStr, exit.Error())
@@ -119,14 +139,9 @@ func (conn *PqConnection) IngestData(data []generator.DataFields) (complete bool
 		errStr = fmt.Sprintf("Problem closing transaction statement: %v", exit.Error())
 		panic(errStr)
 	}
-
-	if exit := conn.Txn.Commit(); exit != nil {
-		panic(
-			fmt.Sprintf("Problem committing transaction: %v", exit.Error()))
-	}
-	return
 }
 
+// PqConnection Listener Callback
 func listenerCallback(l *logger.Logger) func(event pq.ListenerEventType, err error) {
 	return func(event pq.ListenerEventType, err error) {
 		switch event {
