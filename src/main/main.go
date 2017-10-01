@@ -1,15 +1,15 @@
 package main
 
 import (
-	"database/sql"
-	"os"
+	gen "generator"
+	alpha "pq_conn"
 )
 
-//  "github.com/lib/pq"
-
 func main() {
-	db, err := sql.Open(
-		"postgres", "user=%s dbname=%s password=%s",
-		os.Arg[1], os.Arg[2], os.Arg[3])
-	txn, err := db.Begin()
+	data_set := gen.NewDataSet(100000)
+	pq_conn := alpha.MakeConnection("swarm_benchmark")
+	pq_conn.OpenTransaction()
+	if pq_conn.ConnectionOpen {
+		pq_conn.IngestData(data_set)
+	}
 }
