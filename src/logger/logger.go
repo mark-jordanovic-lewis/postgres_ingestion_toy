@@ -19,7 +19,8 @@ func (l Logger) LogError(errStr string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if _, err := f.Write([]byte(errStr)); err != nil {
+	logThis := fmt.Sprintf("[%v]\t%v", time.Now(), errStr)
+	if _, err := f.Write([]byte(logThis)); err != nil {
 		log.Fatal(err)
 	}
 	if err := f.Close(); err != nil {

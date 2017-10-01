@@ -2,6 +2,7 @@ package logger
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -25,7 +26,7 @@ func TestLogError(t *testing.T) {
 	if err != nil {
 		t.Errorf("Logfile %v was not created", l.filename)
 	}
-	byteText := make([]byte, 30)
+	byteText := make([]byte, 200)
 	nBytes, err := logFile.Read(byteText)
 	if err != nil {
 		t.Errorf("Could not read from log file")
@@ -33,7 +34,7 @@ func TestLogError(t *testing.T) {
 	if nBytes == 0 {
 		t.Errorf("Zero bytes read from file")
 	}
-	if text := string(byteText[:nBytes]); text != errTxt {
+	if text := string(byteText[:nBytes]); !strings.Contains(text, errTxt) {
 		t.Errorf("Log file was not written to correctly")
 	}
 }
