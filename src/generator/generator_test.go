@@ -22,10 +22,10 @@ func TestDifferentBigIntsGenerated(t *testing.T) {
 
 func TestNewDataField(t *testing.T) {
 	t.Log("Generating a DataFields object")
-	dfs := newDataFields()
-	ensureBigInt(interface{}(dfs.src), t)
-	ensureBigInt(interface{}(dfs.dst), t)
-	ensureBigInt(interface{}(dfs.flags), t)
+	dfs := NewDataFields()
+	ensureBigInt(interface{}(dfs.Src), t)
+	ensureBigInt(interface{}(dfs.Dst), t)
+	ensureBigInt(interface{}(dfs.Flags), t)
 }
 
 func TestNewDataSet(t *testing.T) {
