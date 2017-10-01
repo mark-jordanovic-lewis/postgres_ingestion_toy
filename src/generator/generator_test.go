@@ -1,38 +1,23 @@
 package generator
 
 import (
-	"math/big"
 	"testing"
 )
-
-func TestRandomBigInt(t *testing.T) {
-	t.Log("Generating a random bigint")
-	r := randomBigInt()
-	ensureBigInt(interface{}(r), t)
-}
 
 func TestDifferentBigIntsGenerated(t *testing.T) {
 	t.Log("Generating two different random bigint")
 	a := randomBigInt()
 	b := randomBigInt()
-	if (&a).Cmp(&b) == 0 {
+	if a == b {
 		t.Errorf("Expected two different random numbers but got %v == %v", a, b)
 	}
-}
-
-func TestNewDataField(t *testing.T) {
-	t.Log("Generating a DataFields object")
-	dfs := NewDataFields()
-	ensureBigInt(interface{}(dfs.Src), t)
-	ensureBigInt(interface{}(dfs.Dst), t)
-	ensureBigInt(interface{}(dfs.Flags), t)
 }
 
 func TestNewDataSet(t *testing.T) {
 	t.Log("Generating Data Set")
 	n := 30
 	data := NewDataSet(n)
-	ensureSliceDateFields(interface{}(data), t)
+	ensureSliceDataFields(interface{}(data), t)
 	if len := len(data); len != 30 {
 		t.Errorf("Expected slice of length 30 but got %v", len)
 	}
@@ -47,16 +32,7 @@ func TestMaxBatchSize(t *testing.T) {
 	}
 }
 
-func ensureBigInt(i interface{}, t *testing.T) {
-	switch iType := i.(type) {
-	case big.Int:
-		t.Log("Correct type returned")
-	default:
-		t.Errorf("Expected big.Int but got %v", iType)
-	}
-}
-
-func ensureSliceDateFields(i interface{}, t *testing.T) {
+func ensureSliceDataFields(i interface{}, t *testing.T) {
 	switch iType := i.(type) {
 	case []DataFields:
 		t.Log("Correct type returned")

@@ -1,29 +1,26 @@
 package generator
 
 import (
-	"math/big"
 	"math/rand"
 	"time"
 )
 
 type DataFields struct {
-	Src   big.Int
-	Dst   big.Int
-	Flags big.Int
+	Src   int64
+	Dst   int64
+	Flags int64
 }
 
-var maxBigInt = big.NewInt(9223372036854775807)
+var maxBigInt = int64(9223372036854775807)
 var source = rand.NewSource(time.Now().Unix())
 var rng = rand.New(source)
 
 // this does not cover -9223372036854775808, only -9223372036854775807
-func randomBigInt() big.Int {
-	r := big.NewInt(0)
-	r.Rand(rng, maxBigInt)
+func randomBigInt() int64 {
 	if rng.Float32() > 0.5 {
-		r.Neg(r)
+		return -1 * rng.Int63n(maxBigInt)
 	}
-	return *r
+	return rng.Int63n(maxBigInt)
 }
 
 func NewDataFields() (dfs DataFields) {
