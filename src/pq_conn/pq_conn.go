@@ -79,14 +79,17 @@ func (conn *PqConnection) OpenTransaction() {
 		errStr := fmt.Sprintf("%v", err.Error())
 		conn.Log.LogError(errStr)
 	}
-	// allow some time for the transaction to connect, 3 ms seems enough, 1&2 ms too short
+	// allow some time for the transaction to connect
+	// 3 ms seems enough, 1&2 ms too short
 	time.Sleep(3 * time.Millisecond)
 	conn.CheckConnectionState()
 	conn.Txn = txn
 }
 
 // IngestData : takes data and ingests it into DB, returning true, or, returns false on errors
-func (conn *PqConnection) IngestData(data []generator.DataFields) (complete bool) {
+func (conn *PqConnection) IngestData(data []generator.DataFields) {
+	conn.BatchIngested = false
+	conn.ConnectionOpen = false
 	defer func() {
 		switch exit := conn.Txn.Rollback(); exit.Error() {
 		case "sql: Transaction has already been committed or rolled back":
@@ -96,23 +99,23 @@ func (conn *PqConnection) IngestData(data []generator.DataFields) (complete bool
 		}
 		if r := recover(); r != nil {
 			conn.Log.LogError(fmt.Sprintln(r))
-			conn.CheckConnectionState()
-			complete = false
 		} else {
-			complete = true
+			conn.BatchIngested = true
 		}
+		conn.CheckConnectionState()
 	}()
+	// time each of these and make an inline version of this and time that too.
 	stmnt := conn.prepareStatement(data)
 	conn.applyStatement(stmnt)
-	if exit := conn.Txn.Commit(); exit != nil {
-		panic(
-			fmt.Sprintf("Problem committing transaction: %v", exit.Error()))
-	}
+	conn.commitTxn()
 	return
 }
 
 // SelectTimeStamps : select timestamps out of ingested data
 func (conn *PqConnection) SelectTimeStamps() (tss []time.Time) {
+	for !conn.ConnectionOpen {
+		conn.CheckConnectionState()
+	}
 	var tmpT *time.Time
 	rows, err := conn.Conn.Query(
 		fmt.Sprintf("SELECT ts FROM %v ORDER BY ts", conn.Table))
@@ -133,7 +136,7 @@ func (conn *PqConnection) SelectTimeStamps() (tss []time.Time) {
 }
 
 // dropAllRows : cleans the table for another run
-func (conn PqConnection) dropAllRows() bool {
+func (conn PqConnection) DropAllRows() bool {
 	_, err := conn.Conn.Exec(
 		fmt.Sprintf("DELETE FROM %v", conn.Table))
 	if err != nil {
@@ -145,6 +148,13 @@ func (conn PqConnection) dropAllRows() bool {
 }
 
 // IngestData helper methods - all panics caught in InjestData defer
+func (conn PqConnection) commitTxn() {
+	if exit := conn.Txn.Commit(); exit != nil {
+		panic(
+			fmt.Sprintf("Problem committing transaction: %v", exit.Error()))
+	}
+}
+
 func (conn PqConnection) prepareStatement(data []generator.DataFields) *sql.Stmt {
 	var errStr string
 	stmnt, err := conn.Txn.Prepare(pq.CopyIn(conn.Table, "src", "dst", "flags"))
@@ -196,6 +206,8 @@ func listenerCallback(l *logger.Logger) func(event pq.ListenerEventType, err err
 			l.LogError(fmt.Sprintf("Could not establish DB connection"))
 		case pq.ListenerEventConnected:
 			l.LogError(fmt.Sprintf("DB connection established"))
+		default:
+			l.LogError(fmt.Sprintf("Unhandled DB response: %v", event))
 		}
 	}
 }

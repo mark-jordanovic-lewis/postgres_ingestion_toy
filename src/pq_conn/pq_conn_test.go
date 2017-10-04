@@ -41,7 +41,7 @@ func TestDropAllRows(t *testing.T) {
 	conn := MakeConnection("swarmtest", "ingestion_test")
 	conn.OpenTransaction()
 	conn.IngestData(data)
-	if !conn.dropAllRows() {
+	if !conn.DropAllRows() {
 		t.Errorf("Reported that there was an error.")
 	}
 	rows, _ := conn.Conn.Query("SELECT * FROM ingestion_test")
@@ -62,7 +62,8 @@ func TestCopyData(t *testing.T) {
 	conn := MakeConnection("swarmtest", "ingestion_test")
 	conn.OpenTransaction()
 	if conn.ConnectionOpen {
-		if !conn.IngestData(data) {
+		conn.IngestData(data)
+		if !conn.BatchIngested {
 			t.Errorf("Could not copy data into DB")
 		} else {
 			query_response, err := conn.Conn.Query(`SELECT * FROM ingestion_test`)
@@ -91,7 +92,7 @@ func TestCopyData(t *testing.T) {
 			conn.ConnectionOpen, conn.Txn, conn.Txn)
 	}
 	// have to do a clean up of the test db
-	conn.dropAllRows()
+	conn.DropAllRows()
 }
 
 func TestSelectTimestamps(t *testing.T) {
@@ -107,7 +108,7 @@ func TestSelectTimestamps(t *testing.T) {
 	if l != 50 {
 		t.Errorf("Expected to get 50 data but got %v.", l)
 	}
-	conn.dropAllRows()
+	conn.DropAllRows()
 }
 
 // Test Helpers
