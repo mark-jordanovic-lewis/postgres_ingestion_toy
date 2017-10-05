@@ -1,10 +1,11 @@
 package main
 
 import (
+	alpha "connections/pq_conn"
 	"fmt"
 	gen "generator"
+	hist "histogram"
 	"math/rand"
-	alpha "pq_conn"
 	"time"
 )
 
@@ -23,7 +24,7 @@ func main() {
 		n_rows := rand.Intn(100000)
 		data_set := gen.NewDataSet(n_rows)
 		dt := float64(
-			generateHistogramIO(data_set, pq_conn))
+			hist.generateHistogramIO(data_set, pq_conn))
 		mu_rps += float64(
 			n_rows) / dt_ns
 		pq_conn.DropAllRows()
