@@ -5,16 +5,22 @@ import (
 	"fmt"
 	"generator"
 	"logger"
+	"os"
 	"time"
 
 	pq "github.com/lib/pq"
 )
 
+type mockchannel struct {
+	File   *os.File
+	DbConn *MockConnection
+}
+
 // PqConnection : simple DB connection model
 type PqConnection struct {
 	DbName           string
 	Table            string
-	Log              logger.Logger
+	Log              *logger.Logger
 	Conn             *sql.DB
 	Listener         *pq.Listener
 	Txn              *sql.Tx
@@ -41,7 +47,7 @@ func MakeConnection(dbname, table string) *PqConnection {
 	conn := PqConnection{
 		DbName: dbname,
 		Table:  table,
-		Log:    log,
+		Log:    &log,
 		Conn:   db_conn,
 		Listener: pq.NewListener(
 			conn_opts,

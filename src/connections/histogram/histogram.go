@@ -4,20 +4,16 @@ import (
 	"fmt"
 	gen "generator"
 	"math"
-	conn "pg_conn"
+	conn "connections/pg_conn"
 	"time"
 )
 
-// make connection/pq etc then
-// put this in connection/histogram, make interface,
-// type histogrammable interface {
-//  OpenTransaction()
-//  IngestData([]DataFields)
-// }
-// can also write tests then.
+type histogrammable interface {
+	OpenTransaction()
+	IngestData([]DataFields)
+}
 
-
-func GenerateHistogramIO(data_set []gen.DataFields, conn *conn.PqConnection) rows_per_s float64 {
+func GenerateHistogramIO(data_set []gen.DataFields, conn *histogrammable rows_per_s float64 {
 	conn.OpenTransaction()
 	// change to for, concurrentify
 	if conn.ConnectionOpen {
