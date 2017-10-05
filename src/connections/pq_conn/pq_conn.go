@@ -5,16 +5,10 @@ import (
 	"fmt"
 	"generator"
 	"logger"
-	"os"
 	"time"
 
 	pq "github.com/lib/pq"
 )
-
-type mockchannel struct {
-	File   *os.File
-	DbConn *MockConnection
-}
 
 // PqConnection : simple DB connection model
 type PqConnection struct {
