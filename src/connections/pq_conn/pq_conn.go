@@ -18,17 +18,9 @@ type PqConnection struct {
 	Conn             *sql.DB
 	Listener         *pq.Listener
 	Txn              *sql.Tx
-	ConnectionOpen   bool
-	ConnectionBroken bool
-	BatchIngested    bool
-}
-
-// SwarmRow : row return struct
-type SwarmRow struct {
-	Ts    *time.Time
-	Src   *int64
-	Dst   *int64
-	Flags *int64
+	connectionOpen   bool
+	connectionBroken bool
+	batchIngested    bool
 }
 
 // MakeConnection : build PqConnection object with connection to DB
@@ -49,9 +41,9 @@ func MakeConnection(dbname, table string) *PqConnection {
 			time.Duration(1)*time.Second,
 			listenerCallback(&log)),
 		Txn:              nil,
-		ConnectionOpen:   false,
-		ConnectionBroken: false,
-		BatchIngested:    false}
+		connectionOpen:   false,
+		connectionBroken: false,
+		batchIngested:    false}
 
 	return &conn
 }
@@ -63,11 +55,11 @@ func (conn *PqConnection) CheckConnectionState() {
 			conn.Log.LogError(fmt.Sprintf("No currently active connection"))
 		} else {
 			conn.Log.LogError(fmt.Sprintf("Connection has issues: %v", err))
-			conn.ConnectionBroken = true
+			conn.connectionBroken = true
 		}
-		conn.ConnectionOpen = false
+		conn.connectionOpen = false
 	} else {
-		conn.ConnectionOpen = true
+		conn.connectionOpen = true
 	}
 }
 
@@ -88,8 +80,8 @@ func (conn *PqConnection) OpenTransaction() {
 
 // IngestData : takes data and ingests it into DB, returning true, or, returns false on errors
 func (conn *PqConnection) IngestData(data []generator.DataFields) {
-	conn.BatchIngested = false
-	conn.ConnectionOpen = false
+	conn.batchIngested = false
+	conn.connectionOpen = false
 	defer func() {
 		switch exit := conn.Txn.Rollback(); exit.Error() {
 		case "sql: Transaction has already been committed or rolled back":
@@ -100,7 +92,7 @@ func (conn *PqConnection) IngestData(data []generator.DataFields) {
 		if r := recover(); r != nil {
 			conn.Log.LogError(fmt.Sprintln(r))
 		} else {
-			conn.BatchIngested = true
+			conn.batchIngested = true
 		}
 		conn.CheckConnectionState()
 	}()
@@ -113,7 +105,7 @@ func (conn *PqConnection) IngestData(data []generator.DataFields) {
 
 // SelectTimeStamps : select timestamps out of ingested data
 func (conn *PqConnection) SelectTimeStamps() (tss []time.Time) {
-	for !conn.ConnectionOpen {
+	for !conn.connectionOpen {
 		conn.CheckConnectionState()
 	}
 	var tmpT *time.Time
@@ -191,6 +183,18 @@ func (conn PqConnection) applyStatement(stmnt *sql.Stmt) {
 		errStr = fmt.Sprintf("Problem closing transaction statement: %v", exit.Error())
 		panic(errStr)
 	}
+}
+
+func (conn PqConnection) BatchIngested() bool {
+	return conn.batchIngested
+}
+
+func (conn PqConnection) ConnectionBroken() bool {
+	return conn.connectionBroken
+}
+
+func (conn PqConnection) ConnectionOpen() bool {
+	return conn.connectionOpen
 }
 
 // PqConnection Listener Callback

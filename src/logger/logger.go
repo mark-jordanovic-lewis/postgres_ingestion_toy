@@ -13,9 +13,7 @@ type Logger struct {
 
 func (l Logger) LogError(errStr string) {
 	f, err := os.OpenFile(
-		l.filename,
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0644)
+		l.filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -34,5 +32,6 @@ func InitTimeStampedLog(prefix string) Logger {
 }
 
 func InitLog(prefix string) Logger {
-	return Logger{filename: fmt.Sprintf("%v.log", prefix)}
+	filename := fmt.Sprintf("%v.log", prefix)
+	return Logger{filename: filename}
 }

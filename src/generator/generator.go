@@ -37,3 +37,15 @@ func NewDataSet(n int) []DataFields {
 	}
 	return slice
 }
+
+func NewPgxDataSet(n int) [][]interface{} {
+	row := make([]interface{}, 3)
+	pgx_data := make([][]interface{}, n)
+	for i := 0; i < n; i++ {
+		row[0] = randomBigInt()
+		row[1] = randomBigInt()
+		row[2] = randomBigInt()
+		pgx_data[i] = row
+	}
+	return pgx_data
+}

@@ -3,6 +3,7 @@ package pq_conn
 import (
 	"generator"
 	"testing"
+	"time"
 )
 
 func TestMakeConnection(t *testing.T) {
@@ -16,10 +17,10 @@ func TestMakeConnection(t *testing.T) {
 func TestCheckConnectionState(t *testing.T) {
 	conn := MakeConnection("swarmtest", "ingestion_test")
 	conn.CheckConnectionState()
-	if conn.ConnectionOpen {
+	if conn.ConnectionOpen() {
 		t.Errorf("Not expecting to be connected to DB on init")
 	}
-	if conn.ConnectionBroken {
+	if conn.ConnectionBroken() {
 		t.Errorf("Connection to DB broken on init")
 	}
 }
@@ -31,7 +32,7 @@ func TestSetupTransaction(t *testing.T) {
 	if conn.Txn == nil {
 		t.Errorf("Expected transaction to be opened but got %v", conn.Txn)
 	}
-	if !conn.ConnectionOpen {
+	if !conn.ConnectionOpen() {
 		t.Errorf("Transaction not connected.")
 	}
 }
@@ -61,9 +62,9 @@ func TestCopyData(t *testing.T) {
 	data := []generator.DataFields{generator.NewDataFields()}
 	conn := MakeConnection("swarmtest", "ingestion_test")
 	conn.OpenTransaction()
-	if conn.ConnectionOpen {
+	if conn.ConnectionOpen() {
 		conn.IngestData(data)
-		if !conn.BatchIngested {
+		if !conn.BatchIngested() {
 			t.Errorf("Could not copy data into DB")
 		} else {
 			query_response, err := conn.Conn.Query(`SELECT * FROM ingestion_test`)
@@ -89,7 +90,7 @@ func TestCopyData(t *testing.T) {
 	} else {
 		t.Errorf(
 			"Transaction connected: %v\n conn.Txn: %T : %v",
-			conn.ConnectionOpen, conn.Txn, conn.Txn)
+			conn.ConnectionOpen(), conn.Txn, conn.Txn)
 	}
 	// have to do a clean up of the test db
 	conn.DropAllRows()
@@ -115,4 +116,12 @@ func TestSelectTimestamps(t *testing.T) {
 
 func incorrectData(a SwarmRow, b generator.DataFields) bool {
 	return !(*a.Src == b.Src && *a.Dst == b.Dst && *a.Flags == b.Flags)
+}
+
+// SwarmRow : row return struct
+type SwarmRow struct {
+	Ts    *time.Time
+	Src   *int64
+	Dst   *int64
+	Flags *int64
 }
