@@ -17,6 +17,7 @@ import (
 func main() {
 	var pq_rpns, pgx_rpns, pgx_multi_rpns float64
 	var pq_times, pgx_times, pgx_multi_times []float64
+	var pgx_multi_data_set [][][]interface{}
 	rand.Seed(time.Now().UnixNano())
 
 	m_batches := rand.Intn(9999) + 1 // 10000
@@ -32,10 +33,10 @@ func main() {
 			pgx_times = make([]float64, m_batches)
 			pgx_multi_times = make([]float64, m_batches)
 		}
-		n_rows := rand.Intn(999) + 1 // 100000
+		n_rows := rand.Intn(99999) + 1 // 100000
 		pq_data_set := gen.NewDataSet(n_rows)
 		pgx_data_set := gen.NewPgxDataSet(n_rows)
-		pgx_multi_data_set := build_multi_data_set(n_rows, n_connections)
+		pgx_multi_data_set = build_multi_data_set(n_rows, n_connections)
 
 		// pq_conn - refactor to function.
 		rpns := float64(n_rows) / dt.TimeIngestion(pq_data_set, pq_conn)
@@ -47,7 +48,7 @@ func main() {
 		} else {
 			fmt.Printf("pq_conn Batch Rejected: %v of %v\n    !!!", m, m_batches)
 		}
-		pq_conn.DropAllRows()
+		// pq_conn.DropAllRows()
 		fmt.Println()
 
 		// pgx_conn
@@ -63,11 +64,12 @@ func main() {
 		} else {
 			fmt.Printf("pgx_conn Batch Rejected: %v of %v\n       !!!", m, m_batches)
 		}
-		pq_conn.DropAllRows()
+		// pq_conn.DropAllRows()
 		fmt.Println()
 
 		// pgx multi conn
 		rpns_sum := 0.0
+
 		for i, set := range pgx_multi_data_set {
 			rpns, err := pgx_multi_conn.CopyData(set)
 			if err != nil {
@@ -89,15 +91,53 @@ func main() {
 		} else {
 			fmt.Printf("pgx_multi_conn Batch Rejected: %v of %v\n       !!!", m, m_batches)
 		}
-		pq_conn.DropAllRows()
+		// pq_conn.DropAllRows()
 		fmt.Println()
 	}
 	hist.BuildHistogram("pq_conn.png", pq_times)
 	fmt.Println("Drawn pq_conn histogram")
 	hist.BuildHistogram("pgx_conn.png", pgx_times)
 	fmt.Println("Drawn pgx_conn histogram")
-	hist.BuildHistogram("pgx_multi_conn.png", pgx_multi_times)
-	fmt.Println("Drawn pgx_multi_conn histogram")
+
+	// pgx multi conn n connections in pool
+	var pgx_multiconn_times [][]float64
+	for m := 0; m < m_batches; m++ {
+		if m == 0 {
+			pgx_multiconn_times = make([][]float64, 8)
+			pgx_multi_times = make([]float64, m_batches)
+		}
+
+		n_rows := rand.Intn(99999) + 1 // 100000
+		n_connections := make([]int, 8)
+		for i := range n_connections {
+			n_connections[i] = 2 * (i + 1)
+		}
+		var rpns float64
+		for x, n := range n_connections {
+			pgx_multi_data_set = build_multi_data_set(n_rows, n)
+			pgx_multi_conn := beta.MakeConnection("swarmtest", "ingestion_test", n)
+			rpns_sum := 0.0
+			for i, set := range pgx_multi_data_set {
+				rpns, err := pgx_multi_conn.CopyData(set)
+				if err != nil {
+					fmt.Printf(
+						"pgx_multi_conn Batch#%v Rejected by CopyFrom: %v of %v      !!!\n%v",
+						i, m, m_batches, err)
+				}
+				rpns_sum += rpns
+			}
+			rpns = (float64(n_rows) / rpns_sum)
+			pgx_multi_times[m] = rpns * math.Pow10(9)
+			pgx_multi_rpns += rpns
+			// pq_conn.DropAllRows()
+			pgx_multiconn_times[x] = pgx_multi_times
+		}
+		for i, data := range pgx_multiconn_times {
+			histfilename := fmt.Sprintf("pgx_multi_conn_%v.png", 2*(i+1))
+			hist.BuildHistogram(histfilename, data)
+			fmt.Printf("Drawn pgx_multi_conn histogram for batch: %v\n", m)
+		}
+	}
 
 	pq_rpns /= float64(m_batches)
 	mu_rps := pq_rpns * math.Pow10(9)
